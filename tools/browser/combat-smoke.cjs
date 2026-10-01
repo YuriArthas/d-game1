@@ -2,7 +2,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const out = path.resolve('artifacts/combat');
+const out = path.resolve('artifacts/waves/browser');
 fs.mkdirSync(out, { recursive: true });
 const base = process.env.PREVIEW_BASE_URL || 'http://127.0.0.1:4173';
 
@@ -54,18 +54,50 @@ const base = process.env.PREVIEW_BASE_URL || 'http://127.0.0.1:4173';
     // Build during combat using only pointer/UI interaction.
     await d.build([5, 1]); await d.wait('kills', 3);
     await d.page.screenshot({ path: path.join(out, 'desktop-battle.png') });
-    await d.page.waitForFunction(() => JSON.parse(document.querySelector('[data-battle-summary]').dataset.battleSummary).phase === 'won', null, { timeout: 60000 });
+    const waitPhase = (page, phase) => page.waitForFunction(phase =>
+      JSON.parse(document.querySelector('[data-battle-summary]').dataset.battleSummary).phase === phase, phase, { timeout: 90000 });
+    await waitPhase(d.page, 'intermission');
     await d.page.waitForFunction(() => JSON.parse(document.querySelector('[data-battle-summary]').dataset.battleSummary).dying === 0);
     await d.page.waitForTimeout(200);
+    evidence.waves = [await d.read()];
+    assert.equal(evidence.waves[0].wave, 1); assert.equal(evidence.waves[0].gold, 60);
+    await d.page.getByText('已获波次奖励 +10 金币', { exact: true }).waitFor();
+    const resting = await d.summary(); await d.page.waitForTimeout(700); assert.deepEqual(await d.summary(), resting);
+    await d.page.screenshot({ path: path.join(out, 'desktop-intermission.png') });
+    await d.click('暂停');
+    assert.equal(await d.page.getByRole('button', { name: '下一波', exact: true }).isEnabled(), false);
+    await d.click('恢复');
+    for (const [wave, cells] of [[2, [[0, 2]]], [3, [[1, 2], [4, 1]]]]) {
+      const previous = await d.read();
+      for (const cell of cells) await d.build(cell);
+      await d.page.waitForFunction(gold => JSON.parse(document.querySelector('[data-battle-report]').dataset.battleReport).gold === gold,
+        previous.gold - 30 * cells.length);
+      const built = await d.read();
+      assert.equal(built.gold, previous.gold - 30 * cells.length);
+      await d.page.getByRole('button', { name: '下一波', exact: true }).dblclick();
+      await d.page.waitForFunction(wave => JSON.parse(document.querySelector('[data-battle-summary]').dataset.battleSummary).wave === wave, wave);
+      const started = await d.summary();
+      assert.equal(started.lives, previous.lives); assert.equal(started.waveKills, 0); assert.equal(started.waveLeaks, 0);
+      await waitPhase(d.page, wave === 3 ? 'won' : 'intermission');
+      await d.page.waitForFunction(() => JSON.parse(document.querySelector('[data-battle-summary]').dataset.battleSummary).dying === 0);
+      await d.page.waitForTimeout(200); const ended = await d.read(); evidence.waves.push(ended);
+      assert.equal(ended.wave, wave);
+      assert.equal(ended.waveKills + ended.waveLeaks, wave === 2 ? 14 : 18);
+      assert.equal(ended.kills, previous.kills + ended.waveKills); assert.equal(ended.leaks, previous.leaks + ended.waveLeaks);
+      assert.equal(ended.gold, built.gold + ended.waveKills * 5 + (wave === 2 ? 15 : 20));
+      assert.deepEqual(ended.towers.slice(0, previous.towers.length).map(t => [t.id, t.cell]), previous.towers.map(t => [t.id, t.cell]));
+    }
     const win = await d.read(); evidence.win = win;
-    assert.equal(win.kills + win.leaks, 8); assert.equal(win.lives, 5 - win.leaks);
-    assert.equal(win.gold, 100 - 90 + win.kills * 5 + 10);
+    assert.equal(win.kills + win.leaks, 40); assert.equal(win.lives, 5 - win.leaks);
+    assert.equal(win.gold, 100 - 180 + win.kills * 5 + 45);
     assert.equal(win.resources.towers.arrows, 0); assert.equal(win.resources.skeletons.activeViews, 0);
     assert.equal(win.resources.towers.arrowsCreated, win.resources.towers.arrowsReleased);
     assert.equal(win.resources.skeletons.created, win.resources.skeletons.released);
+    assert.equal(await d.page.locator('.battle-waves .complete').count(), 3);
+    assert.equal(await d.page.getByRole('button', { name: '开始波次', exact: true }).isEnabled(), false);
     await d.page.screenshot({ path: path.join(out, 'desktop-win.png') });
     await d.click('重新开始'); await d.page.waitForTimeout(200);
-    let reset = await d.read(); assert.equal(reset.gold, 100); assert.equal(reset.lives, 5); assert.equal(reset.towers.length, 0);
+    let reset = await d.read(); assert.equal(reset.gold, 100); assert.equal(reset.lives, 5); assert.equal(reset.towers.length, 0); assert.equal(reset.wave, 0); assert.equal(reset.waveKills, 0);
     await d.page.screenshot({ path: path.join(out, 'desktop-reset.png') });
     assert.equal(reset.resources.towers.active, 1); assert.equal(reset.resources.skeletons.activeViews, 0);
     // Empty defense actually reaches the exit and loses; no wave reward.
@@ -91,12 +123,19 @@ const base = process.env.PREVIEW_BASE_URL || 'http://127.0.0.1:4173';
       await m.wait('shots', 3); await m.click('暂停'); await m.page.waitForTimeout(200);
       const frozen = await m.summary(); await m.page.waitForTimeout(500); assert.deepEqual(await m.summary(), frozen);
       await m.page.screenshot({ path: path.join(out, `${name}-combat.png`) }); evidence[name] = frozen;
-      await m.click('恢复'); await m.wait('kills', 2); await m.click('重新开始');
-      await m.page.waitForTimeout(200); assert.equal((await m.summary()).gold, 100);
+      await m.click('恢复'); await waitPhase(m.page, 'intermission');
+      await m.page.getByRole('button', { name: '下一波', exact: true }).waitFor();
+      await m.page.screenshot({ path: path.join(out, `${name}-intermission.png`) });
+      await m.build([5, 1]); await m.click('下一波');
+      await m.page.waitForFunction(() => JSON.parse(document.querySelector('[data-battle-summary]').dataset.battleSummary).wave === 2);
+      await m.page.waitForTimeout(200);
+      assert.equal((await m.summary()).waveKills, 0);
+      await m.click('重新开始');
+      await m.page.waitForTimeout(200); assert.equal((await m.summary()).gold, 100); assert.equal((await m.summary()).wave, 0);
       await m.context.close();
     }
     assert.deepEqual(errors, []); assert.deepEqual(failures, []);
     fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify({ base, evidence, errors, failures }, null, 2));
-    console.log('Combat browser passed: tower aim/shots/hits/kills, pause/resume, build during wave, victory/economy, empty-defense loss, cleanup/reset/reentry and landscape/portrait touch.');
+    console.log('Three-wave browser passed: combat/pause, intermission reward and rest, paused/double next-wave start, persistent towers/economy/lives, final victory, loss/reset/cleanup and mobile wave transitions.');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

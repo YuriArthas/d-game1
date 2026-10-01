@@ -28,6 +28,8 @@ export const DEMO_CONTENT: ContentSource = {
       reward: 5,
     },
     { id: 'placement-wave', entries: [{ enemyId: 'combat-skeleton', count: 8, interval: 1.2, routeId: 'placement-route' }], reward: 10 },
+    { id: 'placement-wave-2', entries: [{ enemyId: 'combat-skeleton', count: 14, interval: 0.65, routeId: 'placement-route' }], reward: 15 },
+    { id: 'placement-wave-3', entries: [{ enemyId: 'combat-skeleton', count: 18, interval: 0.45, routeId: 'placement-route' }], reward: 20 },
   ],
   maps: [
     { id: 'p2-demo-map', routeIds: ['p2-demo-route'] },
@@ -47,6 +49,6 @@ export const DEMO_CONTENT: ContentSource = {
   levels: [
     { id: 'p2-demo', mapId: 'p2-demo-map', waveIds: ['p2-demo-wave'], startingGold: 100, baseLives: 20 },
     { id: 'p2-lifecycle-50', mapId: 'p2-lanes-map', waveIds: ['p2-lifecycle-wave'], startingGold: 100, baseLives: 20 },
-    { id: 'placement-demo', mapId: 'placement-map', waveIds: ['placement-wave'], startingGold: 100, baseLives: 5 },
+    { id: 'placement-demo', mapId: 'placement-map', waveIds: ['placement-wave', 'placement-wave-2', 'placement-wave-3'], startingGold: 100, baseLives: 5 },
   ],
 };

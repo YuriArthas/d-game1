@@ -164,6 +164,7 @@ console.log('Wave completion before view cleanup, pause during cleanup, per-fram
 await import('./skinning.mjs');
 await import('./placement.mjs');
 await import('./combat.mjs');
+await import('./waves.mjs');
 await import('./arrow-views.mjs');
 
 const { GpuTimer } = await import('../../artifacts/runtime-tests/diagnostics/GpuTimer.js');

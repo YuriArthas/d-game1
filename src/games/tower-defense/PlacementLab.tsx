@@ -11,6 +11,7 @@ import { DEMO_CONTENT } from './data/content';
 import type { GridCell, RouteData } from './data/types';
 import { BattleWorld, type PlacementFailure } from './BattleWorld';
 import { SkeletonViews } from './SkeletonViews';
+import { WavePanel } from './WavePanel';
 
 const LEVEL_ID = 'placement-demo';
 const TOWER_ID = 'arrow-tower';
@@ -129,7 +130,7 @@ function PlacementBoard({ session }: { session: Session }) {
     towers: [...world.towers.values()].map(unit => ({ id: unit.id, cell: unit.cell, position: unit.position })) })}
     data-placement-resources={JSON.stringify(assets.inspect())} data-placement-grid={JSON.stringify(world.grid.data)}>
     <div className="placement-toolbar">
-      <div className="placement-title"><strong>营地布防</strong><small>单箭塔战斗 · 守住出口</small></div>
+      <div className="placement-title"><strong>营地布防</strong><small>守住 {world.level.waveIds.length} 波进攻</small></div>
       <div className="placement-gold">金币 <b>{world.gold}</b></div>
       <span className="placement-lives">生命 <b>{world.lives}</b></span>
       {timing && <FrameHud sample={sample} />}
@@ -141,13 +142,7 @@ function PlacementBoard({ session }: { session: Session }) {
       <BattleCanvas session={session} selected={selected} failure={failure} onSelect={select} sample={sample} timing={timing} />
     </div>
     <aside className="placement-controls" aria-label="建造面板">
-      <div className="battle-panel">
-        <BattleStatus session={session} />
-        <button className="battle-start" type="button" disabled={world.paused || !['ready', 'intermission'].includes(world.phase)}
-          onClick={() => { world.startWave(); refresh(value => value + 1); }}>
-          {world.phase === 'intermission' ? '下一波' : '开始波次'}
-        </button>
-      </div>
+      <WavePanel world={world} catalog={catalog} onStart={() => { world.startWave(); refresh(value => value + 1); }} />
       <div className="placement-tower-card"><span aria-hidden="true">↟</span><div><strong>箭塔</strong><small>{tower.cost} 金币 / 座 · 占一格</small></div></div>
       <p className={`placement-message${failure ? ' invalid' : ''}`} role="status">{selected && failure ? REASONS[failure] : message}</p>
       <div className="placement-actions">
@@ -178,20 +173,6 @@ function BattleCanvas({ session, selected, failure, onSelect, sample, timing }: 
         <BuildScene session={session} selected={selected} failure={failure} onSelect={onSelect} />
         <SceneRenderer sample={timing ? sample : undefined} />
       </Canvas>;
-}
-
-function BattleStatus({ session }: { session: Session }) {
-  const [state, setState] = useState(() => session.world.summary());
-  useEffect(() => {
-    const timer = window.setInterval(() => setState(session.world.summary()), 100);
-    return () => clearInterval(timer);
-  }, [session]);
-  const labels = { ready: '准备布防', running: `第 ${state.wave} 波`, intermission: '本波守住了', won: '防守成功', lost: '防线失守' };
-  return <div className={`battle-status ${state.phase}`} data-battle-summary={JSON.stringify(state)} aria-live="polite">
-    <strong>{labels[state.phase]}</strong>
-    <span>击杀 {state.kills} · 漏怪 {state.leaks}</span>
-    <small>场上 {state.active} · 待出 {state.pending}</small>
-  </div>;
 }
 
 function BattleDetails({ session }: { session: Session }) {

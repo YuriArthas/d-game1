@@ -123,6 +123,11 @@ const base = process.env.PREVIEW_BASE_URL || 'http://127.0.0.1:4173';
       const canvas = await mobile.page.locator('.placement-canvas').boundingBox(); assert.ok(canvas.height > 180, JSON.stringify(canvas));
       const confirm = await mobile.page.getByRole('button', { name: '确认建造', exact: true }).boundingBox();
       assert.ok(confirm.height >= 44 && confirm.y + confirm.height <= height, JSON.stringify(confirm));
+      const textLayout = await mobile.page.evaluate(() => {
+        const range = document.createRange(); range.selectNodeContents(document.querySelector('.placement-message'));
+        return { messageBottom: range.getBoundingClientRect().bottom, footnoteTop: document.querySelector('.placement-footnote').getBoundingClientRect().top };
+      });
+      assert.ok(textLayout.messageBottom <= textLayout.footnoteTop, JSON.stringify(textLayout));
       evidence[name] = { world: await mobile.read(), canvas, confirm };
       await mobile.shot(name);
       await mobile.context.close();

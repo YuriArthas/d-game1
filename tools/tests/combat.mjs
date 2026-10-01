@@ -28,6 +28,7 @@ class ArrowView {
 }
 function source() {
   const data = structuredClone(DEMO_CONTENT);
+  data.levels.find(x => x.id === 'placement-demo').waveIds = ['placement-wave'];
   data.routes.find(x => x.id === 'placement-route').waypoints = [[0, 0, 2], [30, 0, 2]];
   data.maps.find(x => x.id === 'placement-map').buildGrid = { origin: [-2, -2], cellSize: 4, buildableCells: [[0, 0], [1, 0], [2, 0]] };
   Object.assign(data.towers[0], { range: 50, damage: 10, cooldown: 1.2, windup: 0.5, projectileSpeed: 14 });

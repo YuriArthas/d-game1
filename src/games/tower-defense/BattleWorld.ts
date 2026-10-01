@@ -36,6 +36,8 @@ export class BattleWorld {
   private active = 0;
   private kills = 0;
   private leaks = 0;
+  private waveStartKills = 0;
+  private waveStartLeaks = 0;
   private shots = 0;
   private hits = 0;
   gold: number;
@@ -79,6 +81,8 @@ export class BattleWorld {
     if (this.paused || (this.phase !== 'ready' && this.phase !== 'intermission')) return false;
     this.wave = this.catalog.wave(this.level.waveIds[++this.waveIndex]);
     this.spawned = this.wave.entries.map(() => 0);
+    this.waveStartKills = this.kills;
+    this.waveStartLeaks = this.leaks;
     this.step = 0;
     this.accumulator = 0;
     this.phase = 'running';
@@ -160,6 +164,7 @@ export class BattleWorld {
     this.paused = false; this.phase = 'ready'; this.generation++;
     this.wave = null; this.waveIndex = -1; this.spawned = [];
     this.step = this.accumulator = this.created = this.active = this.kills = this.leaks = this.shots = this.hits = 0;
+    this.waveStartKills = this.waveStartLeaks = 0;
   }
   private clear(): void {
     for (const arrow of this.projectiles.values()) arrow.dispose();
@@ -177,6 +182,7 @@ export class BattleWorld {
       paused: this.paused, generation: this.generation, wave: this.waveIndex + 1,
       totalWaves: this.level.waveIds.length, elapsed: this.step * this.fixedStep,
       active: this.active, dying: this.enemies.size - this.active, kills: this.kills, leaks: this.leaks,
+      waveKills: this.kills - this.waveStartKills, waveLeaks: this.leaks - this.waveStartLeaks,
       shots: this.shots, hits: this.hits, arrows: this.projectiles.size,
       pending: this.wave ? this.wave.entries.reduce((sum, entry, i) => sum + entry.count - this.spawned[i], 0) : 0 };
   }
