@@ -4,7 +4,7 @@ import { TestGame } from './games/test-game/TestGame';
 const TEST_GAME_PATH = '/games/test-game';
 
 function currentPath(): string {
-  return window.location.hash.replace(/^#/, '').replace(/\/$/, '') || '/';
+  return window.location.hash.replace(/^#/, '').split('?')[0].replace(/\/$/, '') || '/';
 }
 
 export function App() {

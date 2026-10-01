@@ -1,6 +1,6 @@
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { useEffect, useState } from 'react';
-import { Box3, OrthographicCamera, Vector3 } from 'three';
+import { FitCamera } from '../rendering/FitCamera';
 import { StaticPreviewAsset, type AssetKind } from './StaticPreviewAsset';
 
 export function StaticPreview({ kind }: { kind: AssetKind }) {
@@ -39,24 +39,4 @@ export function StaticPreview({ kind }: { kind: AssetKind }) {
       </div>
     </section>
   );
-}
-
-export function FitCamera({ bounds }: { bounds: Box3 }) {
-  const { camera, size, invalidate } = useThree();
-  useEffect(() => {
-    if (!(camera instanceof OrthographicCamera)) throw new Error('静态预览需要正交相机');
-    const center = bounds.getCenter(new Vector3());
-    camera.position.copy(center).add(new Vector3(6, 7, 9));
-    camera.lookAt(center);
-    camera.updateMatrixWorld(true);
-    const { min, max } = bounds;
-    const corners = [min.x, max.x].flatMap((x) => [min.y, max.y].flatMap((y) =>
-      [min.z, max.z].map((z) => new Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse))));
-    const width = Math.max(...corners.map((p) => p.x)) - Math.min(...corners.map((p) => p.x));
-    const height = Math.max(...corners.map((p) => p.y)) - Math.min(...corners.map((p) => p.y));
-    camera.zoom = Math.min(size.width / (width * 1.35), size.height / (height * 1.35));
-    camera.updateProjectionMatrix();
-    invalidate();
-  }, [bounds, camera, size.width, size.height, invalidate]);
-  return null;
 }

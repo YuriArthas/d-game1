@@ -1,150 +1,185 @@
-import { Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
+import { Box3, BufferGeometry, Group, Line, LineBasicMaterial, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
+import { DEMO_CONTENT } from '../tower-defense/data/content';
+import { ContentCatalog } from '../tower-defense/data/catalog';
+import type { WaveData } from '../tower-defense/data/types';
 
-export type EnemyState = 'active' | 'escaped';
+import { RoutePath } from '../tower-defense/RoutePath';
+import { EnemyUnit, type UnitView } from '../tower-defense/EnemyUnit';
 
-export interface RouteDefinition {
-  readonly waypoints: readonly Vector3[];
-}
+type ViewFactory = (color: string) => UnitView;
 
-export class RouteFollower {
-  private readonly segmentLengths: number[] = [];
-  private readonly cumulative: number[] = [0];
-  readonly length: number;
-
-  constructor(private readonly route: RouteDefinition) {
-    for (let index = 1; index < route.waypoints.length; index += 1) {
-      const segmentLength = route.waypoints[index - 1].distanceTo(route.waypoints[index]);
-      this.segmentLengths.push(segmentLength);
-      this.cumulative.push(this.cumulative[index - 1] + segmentLength);
-    }
-    this.length = this.cumulative.at(-1) ?? 0;
-  }
-
-  get points(): readonly Vector3[] { return this.route.waypoints; }
-
-  positionAt(progress: number, target = new Vector3()): Vector3 {
-    if (this.route.waypoints.length === 0) return target.set(0, 0, 0);
-    if (this.route.waypoints.length === 1 || this.length === 0) return target.copy(this.route.waypoints[0]);
-    const distance = Math.max(0, Math.min(1, progress)) * this.length;
-    let segment = this.segmentLengths.length - 1;
-    for (let index = 0; index < this.segmentLengths.length; index += 1) {
-      if (distance <= this.cumulative[index + 1]) { segment = index; break; }
-    }
-    const start = this.route.waypoints[segment];
-    const end = this.route.waypoints[segment + 1];
-    const span = this.segmentLengths[segment] || 1;
-    return target.copy(start).lerp(end, (distance - this.cumulative[segment]) / span);
-  }
-}
-
-export class EnemyView {
+export class EnemyView implements UnitView {
   readonly root = new Group();
-  private readonly body: Mesh;
+  private readonly body: Mesh<SphereGeometry, MeshStandardMaterial>;
+  private deathTime = 0;
+  private disposed = false;
 
   constructor(color: string) {
-    this.body = new Mesh(new SphereGeometry(0.28, 16, 10), new MeshStandardMaterial({ color }));
+    this.body = new Mesh(new SphereGeometry(0.2, 12, 8), new MeshStandardMaterial({ color }));
     this.body.castShadow = true;
-    this.body.position.y = 0.32;
+    this.body.position.y = 0.22;
     this.root.add(this.body);
   }
-
-  sync(position: Vector3, state: EnemyState): void {
-    this.root.position.copy(position);
-    this.root.visible = state === 'active';
+  sync(position: Vector3): void { this.root.position.copy(position); }
+  update(_delta: number): void {}
+  markDead(): void { this.body.material.color.set('#ee6474'); }
+  // A deliberately simple death presentation, not a skeleton animation.
+  updateDeath(delta: number): boolean {
+    this.deathTime += delta;
+    this.body.scale.setScalar(Math.max(0, 1 - this.deathTime / 0.8));
+    return this.deathTime >= 0.8;
   }
-
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.root.removeFromParent();
     this.body.geometry.dispose();
-    (this.body.material as MeshStandardMaterial).dispose();
+    this.body.material.dispose();
   }
-}
-
-export class EnemyUnit {
-  state: EnemyState = 'active';
-  progress = 0;
-  ticks = 0;
-  readonly view: EnemyView;
-  private readonly position = new Vector3();
-
-  constructor(readonly id: string, private readonly follower: RouteFollower, readonly speed: number, color: string, initialProgress = 0) {
-    this.progress = initialProgress;
-    this.view = new EnemyView(color);
-    this.syncView();
-  }
-
-  tick(deltaSeconds: number): void {
-    if (this.state !== 'active') return;
-    this.ticks += 1;
-    this.progress = Math.min(1, this.progress + (this.speed * deltaSeconds) / this.follower.length);
-    if (this.progress >= 1) this.state = 'escaped';
-    this.syncView();
-  }
-
-  private syncView(): void {
-    this.follower.positionAt(this.progress, this.position);
-    this.view.sync(this.position, this.state);
-  }
-
-  dispose(): void { this.view.dispose(); }
 }
 
 export class GameWorld {
   readonly root = new Group();
-  readonly route: RouteFollower;
-  units: EnemyUnit[] = [];
-  paused = true;
-  elapsed = 0;
-  generation = 0;
+  readonly bounds: Box3;
+  readonly wave: WaveData;
+  readonly plannedCount: number;
+  private readonly routes = new Map<string, RoutePath>();
+  private readonly lines: Line<BufferGeometry, LineBasicMaterial>[] = [];
+  private readonly units = new Map<string, EnemyUnit>();
+  private spawned: number[] = [];
+  private accumulator = 0;
+  private step = 0;
   private disposed = false;
+  private created = 0;
+  private released = 0;
+  private dead = 0;
+  private escaped = 0;
+  private active = 0;
+  private complete = false;
+  private totalCreated = 0;
+  private totalReleased = 0;
+  paused = true;
+  generation = 0;
+  renderMemory = { geometries: 0, textures: 0 };
+  readonly fixedStep = 1 / 60;
 
-  constructor(route: RouteDefinition) {
-    this.route = new RouteFollower(route);
+  constructor(private readonly catalog: ContentCatalog, readonly levelId: string, readonly waveId: string,
+    private readonly createView: ViewFactory = color => new EnemyView(color)) {
+    const level = catalog.level(levelId);
+    if (!level.waveIds.includes(waveId)) throw new Error(`波次不属于关卡：${levelId}/${waveId}`);
+    this.wave = catalog.wave(waveId);
+    this.plannedCount = this.wave.entries.reduce((sum, entry) => sum + entry.count, 0);
+    for (const id of catalog.map(level.mapId).routeIds) {
+      const route = new RoutePath(catalog.route(id));
+      this.routes.set(id, route);
+      const line = new Line(new BufferGeometry().setFromPoints([...route.points]), new LineBasicMaterial({ color: '#c2d9ce' }));
+      line.position.y = 0.015;
+      this.lines.push(line);
+      this.root.add(line);
+    }
+    this.bounds = new Box3().setFromPoints([...this.routes.values()].flatMap(route => [...route.points])).expandByScalar(0.6);
     this.reset();
   }
-
-  start(): void { this.paused = false; }
-  pause(): void { this.paused = true; }
-
+  private requireOpen(): void { if (this.disposed) throw new Error('世界已经释放'); }
+  start(): void { this.requireOpen(); this.paused = false; }
+  pause(): void { this.requireOpen(); this.paused = true; }
+  private clearUnits(): void {
+    for (const unit of this.units.values()) { unit.dispose(); this.totalReleased++; }
+    this.units.clear();
+    this.active = 0;
+  }
   reset(): void {
-    this.units.forEach(unit => { this.root.remove(unit.view.root); unit.dispose(); });
-    this.units = [
-      new EnemyUnit('enemy-a', this.route, 0.9, '#e47b6d', 0),
-      new EnemyUnit('enemy-b', this.route, 0.65, '#6da7e4', 0.08),
-      new EnemyUnit('enemy-c', this.route, 0.45, '#e4c86d', 0.16),
-    ];
-    this.units.forEach(unit => this.root.add(unit.view.root));
-    this.elapsed = 0;
+    this.requireOpen();
+    this.clearUnits();
+    this.spawned = this.wave.entries.map(() => 0);
+    this.step = this.accumulator = this.created = this.released = this.dead = this.escaped = 0;
+    this.complete = false;
     this.paused = true;
-    this.generation += 1;
+    this.generation++;
   }
-
-  tick(deltaSeconds: number): void {
-    if (this.disposed || this.paused) return;
-    const delta = Math.min(deltaSeconds, 0.1);
-    this.elapsed += delta;
-    this.units.forEach(unit => unit.tick(delta));
+  kill(count: number): void {
+    this.requireOpen();
+    for (const unit of this.units.values()) {
+      if (count <= 0) break;
+      if (unit.kill()) { this.dead++; this.active--; count--; }
+    }
+    this.complete = this.created === this.plannedCount && this.active === 0;
   }
-
-  inspect() {
+  tick(delta: number): void {
+    if (this.disposed || this.paused || (this.complete && this.units.size === 0)) return;
+    // Bound catch-up after a background tab; preserve the fractional fixed step.
+    this.accumulator += Math.min(delta, 0.25);
+    while (this.accumulator + 1e-9 >= this.fixedStep) {
+      this.advance();
+      this.accumulator = Math.max(0, this.accumulator - this.fixedStep);
+    }
+    // Exactly one presentation advance per rendered frame, using simulated time only.
+    for (const [id, unit] of this.units) {
+      unit.present();
+      if (unit.released) this.releaseUnit(id);
+    }
+  }
+  private advance(): void {
+    const running = !this.complete;
+    const colors = ['#e9b85e', '#70b7ee', '#b998eb', '#ef9474', '#80d4aa'];
+    if (running) this.wave.entries.forEach((entry, index) => {
+      // Entries run concurrently, first spawn at t=0, zero interval is a burst.
+      while (this.spawned[index] < entry.count && this.spawned[index] * entry.interval <= this.step * this.fixedStep + 1e-9) {
+        const id = `${this.generation}:${++this.created}`;
+        const unit = new EnemyUnit(id, this.catalog.enemy(entry.enemyId), entry.routeId,
+          this.routes.get(entry.routeId)!, () => this.createView(colors[index % colors.length]));
+        this.units.set(id, unit);
+        this.active++;
+        this.root.add(unit.view.root);
+        this.totalCreated++;
+        this.spawned[index]++;
+      }
+    });
+    for (const [id, unit] of this.units) {
+      unit.tick(this.fixedStep);
+      if (unit.released) {
+        this.escaped++;
+        this.active--;
+        this.releaseUnit(id);
+      }
+    }
+    if (running) this.step++;
+    this.complete = this.created === this.plannedCount && this.active === 0;
+  }
+  private releaseUnit(id: string): void {
+    this.units.delete(id);
+    this.released++;
+    this.totalReleased++;
+  }
+  summary() {
     return {
-      generation: this.generation,
-      paused: this.paused,
-      elapsed: Number(this.elapsed.toFixed(3)),
-      units: this.units.map(unit => ({ id: unit.id, state: unit.state, progress: Number(unit.progress.toFixed(3)), ticks: unit.ticks })),
+      levelId: this.levelId, waveId: this.waveId, generation: this.generation, paused: this.paused, closed: this.disposed, complete: this.complete,
+      elapsed: this.step * this.fixedStep, plannedCount: this.plannedCount,
+      activeCount: this.active,
+      dyingCount: this.units.size - this.active,
+      deadCount: this.dead, escapedCount: this.escaped, releasedCount: this.released, createdCount: this.created,
+      pendingCount: this.plannedCount - this.created, retainedCount: this.units.size,
+      totalCreated: this.totalCreated, totalReleased: this.totalReleased,
+      renderMemory: this.renderMemory,
     };
   }
-
+  inspect() {
+    return {
+      ...this.summary(),
+      units: [...this.units.values()].map(unit => ({ id: unit.id, definitionId: unit.definition.id, routeId: unit.routeId,
+        state: unit.state, health: unit.health, progress: unit.progress, animation: unit.view.inspect?.() })),
+    };
+  }
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.units.forEach(unit => { this.root.remove(unit.view.root); unit.dispose(); });
-    this.units = [];
+    this.paused = true;
+    this.clearUnits();
+    this.lines.forEach(line => { line.removeFromParent(); line.geometry.dispose(); line.material.dispose(); });
+    this.root.removeFromParent();
   }
 }
 
-export function createDemoWorld(): GameWorld {
-  return new GameWorld({ waypoints: [
-    new Vector3(-4, 0, -2), new Vector3(-1.5, 0, -2), new Vector3(-1.5, 0, 1.5),
-    new Vector3(2.5, 0, 1.5), new Vector3(4, 0, -1),
-  ] });
+export function createDemoWorld(levelId: string, waveId: string, createView?: ViewFactory): GameWorld {
+  return new GameWorld(new ContentCatalog(DEMO_CONTENT), levelId, waveId, createView);
 }

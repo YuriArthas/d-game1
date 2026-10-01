@@ -1,7 +1,7 @@
 import { Box3, BufferGeometry, Group, Material, Mesh, Texture } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
-import { disposeScene } from '../disposeScene';
+import { disposeScene } from '../../rendering/disposeScene';
 import { AnimationActor, type AnimatedKind } from './AnimationActor';
 
 export class AnimationSession {

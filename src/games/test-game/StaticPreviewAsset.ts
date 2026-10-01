@@ -1,6 +1,6 @@
 import { Box3, Group, Mesh, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { disposeScene } from './disposeScene';
+import { disposeScene } from '../rendering/disposeScene';
 
 export type AssetKind = 'tower' | 'bow' | 'arrow';
 const FILES: Record<AssetKind, string[]> = {

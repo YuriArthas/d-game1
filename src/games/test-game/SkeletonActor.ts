@@ -3,7 +3,7 @@ import {
   Mesh, Object3D,
 } from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { disposeScene } from './disposeScene';
+import { disposeScene } from '../rendering/disposeScene';
 
 export type SkeletonMotion = 'idle' | 'walk' | 'death';
 const CLIPS: Record<SkeletonMotion, string> = {
@@ -57,4 +57,3 @@ export class SkeletonActor {
     disposeScene(this.root);
   }
 }
-

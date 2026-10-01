@@ -11,7 +11,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "serve": "node server/serve.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:runtime": "node tools/tests/runtime.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "^9.8.1",

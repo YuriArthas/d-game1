@@ -1,6 +1,6 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useEffect, useState } from 'react';
-import { FitCamera } from '../StaticPreview';
+import { FitCamera } from '../../rendering/FitCamera';
 import { AnimationSession } from './AnimationSession';
 import type { AnimatedKind } from './AnimationActor';
 

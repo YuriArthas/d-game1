@@ -1,0 +1,95 @@
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const out = path.resolve('artifacts/skeleton-runtime'); fs.mkdirSync(out, { recursive: true });
+(async () => {
+ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH, headless: true,
+  args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+ try {
+  const page = await browser.newPage({viewport:{width:1280,height:800}});
+  const errors=[], failures=[], evidence={};
+  page.on('pageerror',e=>errors.push(String(e)));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+  page.on('requestfailed',r=>failures.push(r.url()));page.on('response',r=>{if(r.status()>=400)failures.push(`${r.status()} ${r.url()}`)});
+  const base = process.env.PREVIEW_BASE_URL || 'http://127.0.0.1:4173';
+  await page.goto(`${base}/#/games/test-game?view=runtime`,{waitUntil:'networkidle'});
+  const read = async()=>page.locator('.runtime-lab').evaluate(el=>({world:JSON.parse(el.dataset.runtimeReport),pool:JSON.parse(el.dataset.resourceReport)}));
+  const perf = async()=>page.locator('.frame-hud').evaluate(el=>JSON.parse(el.dataset.frameReport));
+  const wait=async(check,label)=>{const end=Date.now()+120000;while(Date.now()<end){if(await page.locator('.runtime-lab').count()){const r=await read();if(check(r))return r;} await page.waitForTimeout(150)}throw Error(`${label}: ${JSON.stringify(await read())}`)};
+  const click = name=>page.getByRole('button',{name,exact:true}).click();
+  await page.getByLabel('运行时模型').selectOption('skeleton');
+  await wait(r=>r.pool&&!r.pool.closed,'load');
+  assert.equal('units' in (await read()).world,false);
+  await page.getByText('数据与释放记录',{exact:true}).click();
+  await wait(r=>Array.isArray(r.world.units),'details enabled');
+  await click('开始 / 继续'); await wait(r=>r.world.activeCount===3,'three walking');
+  await click('暂停'); const frozen=await wait(r=>r.world.paused,'paused');
+  await page.waitForTimeout(300);assert.deepEqual(await read(),frozen);
+  assert.ok(frozen.world.units.every(u=>u.animation.clip==='Walking_A'));
+  assert.equal(new Set(frozen.world.units.map(u=>u.animation.skeletonId)).size,3);
+  assert.equal(new Set(frozen.world.units.map(u=>u.animation.geometryId)).size,1);
+  const firstPerf=await perf();assert.ok(firstPerf.frame>0&&firstPerf.cpuMs>=0&&firstPerf.submitMs>=0);
+  await page.waitForTimeout(300);assert.ok((await perf()).frame>firstPerf.frame);
+  evidence.three=frozen;
+  await click('击杀 10 个');
+  const completed=await wait(r=>r.world.complete&&r.world.dyingCount===3,'logical completion');
+  assert.equal(completed.world.paused,true);
+  await page.waitForTimeout(300);assert.deepEqual(await read(),completed);
+  evidence.completedBeforeCleanup=completed;
+  await click('开始 / 继续');
+  const cleaned=await wait(r=>r.world.retainedCount===0&&r.pool.released===3,'completed death cleanup');
+  assert.equal(cleaned.world.elapsed,completed.world.elapsed);
+  assert.equal(cleaned.world.complete,true);
+  evidence.completedAfterCleanup=cleaned;
+  await page.getByLabel('运行时场景').selectOption('p2-lifecycle-50');
+  const empty=await wait(r=>r.pool&&r.world.levelId==='p2-lifecycle-50'&&r.world.renderMemory.geometries===6,'empty baseline');
+  evidence.empty=empty;
+  await page.getByText('数据与释放记录',{exact:true}).click();
+  await wait(r=>Array.isArray(r.world.units),'large details enabled');
+  await click('开始 / 继续'); await wait(r=>r.world.activeCount===50,'50 walking');await click('暂停');
+  evidence.active=await wait(r=>r.world.paused&&r.world.renderMemory.textures===54,'50 paused');evidence.activePerf=await perf();
+  assert.equal(new Set(evidence.active.world.units.map(u=>u.animation.skeletonId)).size,50);
+  assert.equal(new Set(evidence.active.world.units.map(u=>u.animation.boneId)).size,50);
+  assert.equal(new Set(evidence.active.world.units.map(u=>u.animation.geometryId)).size,1);
+  assert.equal(evidence.active.pool.sharedGeometryDisposals,0);
+  assert.ok(evidence.active.world.units.every(u=>u.animation.skeletonCount===1&&u.animation.skinnedMeshCount===9));
+  await page.screenshot({path:path.join(out,'50-walking.png')});
+  await click('击杀 10 个');const dead=await wait(r=>r.world.dyingCount===10&&r.world.activeCount===40,'death state');
+  assert.ok(dead.world.units.filter(u=>u.state==='dead').every(u=>u.animation.clip==='Death_A'));
+  await page.waitForTimeout(300);assert.deepEqual(await read(),dead);
+  evidence.death=dead;await page.screenshot({path:path.join(out,'death-paused.png')});
+  await page.getByText('数据与释放记录',{exact:true}).click();
+  await wait(r=>!('units' in r.world),'details disabled');
+  await click('开始 / 继续');await wait(r=>r.world.releasedCount>=10&&r.world.dyingCount===0,'death release');
+  const ended=await wait(r=>r.world.releasedCount===50&&r.world.retainedCount===0,'escaped');
+  assert.equal(ended.pool.released,50);assert.equal(ended.pool.sharedGeometryDisposals,0);
+  await page.waitForTimeout(400);evidence.instancesReleased=await read();
+  assert.equal(evidence.instancesReleased.world.renderMemory.textures,4);
+  await click('卸载资源');const unloaded=await wait(r=>r.pool.closed&&r.world.renderMemory.geometries===1,'template release');
+  assert.equal(unloaded.pool.sharedGeometryDisposals,9);assert.equal(unloaded.pool.created,unloaded.pool.released);
+  assert.equal(unloaded.world.renderMemory.textures,3);
+  evidence.unloaded=unloaded;await page.screenshot({path:path.join(out,'unloaded.png')});
+  evidence.cycles=[];
+  for(let i=0;i<3;i++){
+   await click('重载资源');await wait(r=>r.pool&&!r.pool.closed&&r.world.pendingCount===50,'reload');
+   await click('开始 / 继续');await wait(r=>r.world.activeCount>=10,'spawn');await click('卸载资源');
+   const r=await wait(r=>r.pool.closed&&r.world.renderMemory.geometries===1,'unload cycle');
+   assert.equal(r.pool.created,r.pool.released);assert.deepEqual(r.world.renderMemory,unloaded.world.renderMemory);evidence.cycles.push(r);
+  }
+  await click('重载资源');await wait(r=>r.pool&&!r.pool.closed,'layout load');await click('开始 / 继续');
+  await wait(r=>r.world.activeCount===50,'layout 50');await click('暂停');
+  for(const [name,width,height] of [['landscape',844,390],['portrait',390,844]]){
+   await page.setViewportSize({width,height});await page.waitForTimeout(300);
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+   const canvas=await page.locator('.runtime-canvas').boundingBox();assert.ok(canvas.height>90,JSON.stringify(canvas));
+   await page.screenshot({path:path.join(out,`${name}.png`)});
+  }
+  await page.setViewportSize({width:1280,height:800});
+  await click('← 返回游戏列表');await page.getByRole('button',{name:/塔防模型测试/}).click();await click('运行时验证');
+  await page.getByLabel('运行时模型').selectOption('skeleton');await wait(r=>r.pool&&!r.pool.closed,'reentry');await click('开始 / 继续');await wait(r=>r.world.activeCount===3,'reentry movement');
+  assert.deepEqual(errors,[]);assert.deepEqual(failures,[]);
+  evidence.finalPerf=await perf();
+  fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({base,evidence,errors,failures},null,2));
+  console.log('Skeleton runtime passed: CPU/GPU HUD, 3/50 independent actors, pause/death, shared resources, three unload/reload cycles, mobile layouts, reentry.');
+ } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1});
