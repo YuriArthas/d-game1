@@ -1,0 +1,211 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #edf2ff;
+  background: #101522;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+}
+
+.launcher-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at top, #26375d 0%, #101522 58%);
+}
+
+.launcher-card {
+  width: min(620px, 100%);
+  padding: 36px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 20px;
+  background: rgb(16 21 34 / 0.86);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.28);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: #96b5ff;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 8vw, 3.2rem);
+}
+
+.launcher-description {
+  margin: 14px 0 28px;
+  color: #aeb8cc;
+  line-height: 1.6;
+}
+
+.game-entry {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  border: 1px solid #3c5f9b;
+  border-radius: 12px;
+  color: #f4f7ff;
+  background: #1c335d;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.game-entry:hover {
+  background: #254579;
+  transform: translateY(-2px);
+}
+
+.game-entry span:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.game-entry small {
+  color: #afc3ea;
+}
+
+.game-page {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #172033;
+}
+
+.game-page canvas {
+  display: block;
+}
+
+.back-button {
+  position: absolute;
+  z-index: 1;
+  top: 18px;
+  left: 18px;
+  padding: 10px 14px;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: 8px;
+  color: #f4f7ff;
+  background: rgb(16 21 34 / 0.72);
+  cursor: pointer;
+}
+
+.animation-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(360px, calc(100% - 24px));
+  padding: 14px 18px;
+  border-radius: 12px;
+  color: #d9e3f8;
+  background: rgb(16 21 34 / 0.9);
+  text-align: center;
+}
+
+.animation-panel p { margin: 6px 0 10px; font-size: 0.85rem; }
+.animation-panel small { display: block; margin-top: 10px; color: #afc3ea; font-size: 0.75rem; }
+.animation-buttons { display: flex; gap: 8px; }
+.animation-buttons button {
+  flex: 1;
+  min-height: 44px;
+  border: 1px solid #536b91;
+  border-radius: 8px;
+  color: #edf2ff;
+  background: #213456;
+  cursor: pointer;
+}
+.animation-buttons button[aria-pressed="true"] { background: #3b62a2; border-color: #9bbcff; }
+.animation-buttons button:disabled { opacity: 0.5; cursor: wait; }
+.game-page { height: 100dvh; }
+
+.asset-test-page { height: 100dvh; display: flex; flex-direction: column; }
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #101522;
+}
+.preview-header nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.preview-header button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid #536b91;
+  border-radius: 8px;
+  color: #edf2ff;
+  background: #213456;
+  cursor: pointer;
+}
+.preview-header button[aria-pressed="true"] { background: #3b62a2; border-color: #9bbcff; }
+.preview-content { flex: 1; min-height: 0; }
+.preview-content > .game-page { height: 100%; width: 100%; }
+.static-preview { height: 100%; display: flex; flex-direction: column; }
+.static-canvas { flex: 1; min-height: 0; }
+.preview-status { padding: 9px 12px; font-size: 0.85rem; text-align: center; background: #101522; }
+
+@media (max-height: 500px) and (min-width: 600px) {
+  .animation-panel {
+    left: auto;
+    right: 12px;
+    bottom: 12px;
+    width: 260px;
+    transform: none;
+  }
+}
+
+.animation-lab { height: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+.lab-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 12px; }
+.lab-toolbar [role="status"] { font-size: .8rem; color: #afc3ea; }
+.lab-canvas { min-height: 0; min-width: 0; overflow: hidden; }
+.lab-controls { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 8px 12px; background: #101522; }
+.actor-controls { min-width: 0; padding: 8px; border: 1px solid #3c5f9b; border-radius: 8px; }
+.actor-controls strong { display: block; font-size: .85rem; margin-bottom: 6px; }
+.actor-buttons { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 5px; }
+.animation-lab button, .animation-lab select { min-height: 36px; border: 1px solid #536b91; border-radius: 6px; background: #213456; color: #edf2ff; padding: 4px 8px; cursor: pointer; }
+.animation-lab button:disabled { opacity: .4; cursor: default; }
+.animation-lab label { font-size: .8rem; }
+.time-control { display: flex; align-items: center; gap: 6px; margin: 5px 0; }
+.time-control input { min-width: 0; flex: 1; }
+
+.runtime-lab { height: 100%; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: #101522; }
+.runtime-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+.runtime-toolbar strong { margin-right: 8px; }
+.runtime-toolbar button { min-height: 36px; padding: 4px 10px; border: 1px solid #536b91; border-radius: 6px; color: #edf2ff; background: #213456; cursor: pointer; }
+.runtime-toolbar button:disabled { opacity: .45; cursor: default; }
+.runtime-toolbar [role="status"] { color: #afc3ea; font-size: .85rem; }
+.runtime-canvas { min-height: 0; overflow: hidden; }
+.runtime-report { display: flex; flex-wrap: wrap; gap: 14px; padding: 9px 12px; color: #c5d3ed; background: #101522; font-size: .82rem; }
+@media (max-height: 600px) and (min-width: 700px) {
+  .animation-lab { grid-template-columns: minmax(0, 1fr) 310px; grid-template-rows: auto minmax(0, 1fr); }
+  .lab-toolbar { grid-column: 1 / -1; }
+  .lab-controls { grid-template-columns: 1fr; overflow-y: auto; }
+}
