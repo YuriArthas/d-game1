@@ -35,8 +35,12 @@ function GameList({ onOpenTestGame }: { onOpenTestGame: () => void }) {
         <p className="eyebrow">Three.js Game Test Server</p>
         <h1>游戏列表</h1>
         <p className="launcher-description">
-          这是用于测试游戏入口的外层页面。当前只有一个测试游戏。
+          选择游戏，或进入模型与动作测试。
         </p>
+        <a className="game-entry" style={{ textDecoration: 'none' }} href={`${import.meta.env.BASE_URL}games/block-blast/index.html`}>
+          <span><strong>Block Blast</strong><small>方块消除 · 手机竖屏 · 挑战最高分</small></span>
+          <span aria-hidden="true">进入游戏&nbsp; →</span>
+        </a>
         <button className="game-entry" type="button" onClick={onOpenTestGame}>
           <span>
             <strong>塔防模型测试</strong>

@@ -46,3 +46,11 @@ blender --background --factory-startup --threads 4 --python-exit-code 1 \
 ```
 
 测试输出在 `artifacts/`，不进入游戏构建。模型导入、动作渲染、GLB 导出及编辑器截图的证据见 [Blender 实测记录](docs/research/blender-probe.md)。
+
+## Block Blast 竖屏游戏
+
+游戏列表新增 Block Blast，静态入口为 `games/block-blast/index.html`，源码位于同级 `../d-Block-Blast`。宿主及子游戏使用 Node.js **24.x**。两个工程各执行一次 `npm ci --ignore-scripts`，之后宿主的 `npm run build` 会先构建 Block Blast，再构建宿主并复制完整子游戏产物。若源码不在默认路径，设置 `BLOCK_BLAST_PROJECT` 为其目录；源码或依赖缺失时构建明确失败。
+
+构建完成后 `npm run serve` 在 4173 提供完整静态站点。Block Blast 支持刷新、暂停菜单返回列表，调试入口添加 `?debug=1`。子游戏可以独立构建部署，无需加载塔防资源。游戏规则、确定性 API、回放和验证记录见 [Block Blast README](../d-Block-Blast/README.md)。
+
+当前站点已切到公开入口 <https://w-sunjun-public.dev.clock-p.com/>，无需登录；Block Blast 直达 <https://w-sunjun-public.dev.clock-p.com/games/block-blast/index.html>。

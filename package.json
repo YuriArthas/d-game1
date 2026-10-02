@@ -5,11 +5,11 @@
   "description": "A minimal Three.js game launcher and test game.",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24 <25"
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "node tools/build-with-games.mjs",
     "serve": "node server/serve.mjs",
     "preview": "vite preview",
     "test:runtime": "node tools/tests/runtime.mjs"
