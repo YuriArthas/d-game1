@@ -1,11 +1,11 @@
 import { AnimationAction, AnimationClip, AnimationMixer, Bone, Group, LoopOnce, LoopRepeat, Mesh, Object3D, SkinnedMesh } from 'three';
-
-export type AnimatedKind = 'tower' | 'skeleton';
-export type Motion = 'ready' | 'shoot' | 'idle' | 'walk' | 'death';
-const NAMES: Partial<Record<Motion, string>> = { shoot: 'Shoot', idle: 'Idle', walk: 'Walking_A', death: 'Death_A' };
+import { ANIMATED_MODELS, type AnimatedKind, type Motion } from './AnimationModels';
+import { UpperBodyLayer } from './UpperBodyLayer';
+export type { AnimatedKind, Motion } from './AnimationModels';
 
 export class AnimationActor {
   readonly mixer: AnimationMixer;
+  readonly upperBody: UpperBodyLayer | null;
   private action: AnimationAction | null = null;
   private motion: Motion = 'ready';
   private state = 'ready';
@@ -20,11 +20,14 @@ export class AnimationActor {
   constructor(readonly root: Group, readonly kind: AnimatedKind,
     private readonly clips: AnimationClip[], private readonly release: () => void) {
     this.mixer = new AnimationMixer(root);
+    this.upperBody = ANIMATED_MODELS[kind].upperBody
+      ? new UpperBodyLayer(root, this.mixer, clips, ANIMATED_MODELS[kind].upperBody)
+      : null;
     root.traverse(object => {
       if (object instanceof SkinnedMesh) this.skeletons.add(object.skeleton);
     });
-    for (const motion of kind === 'tower' ? ['shoot'] : ['idle', 'walk', 'death']) {
-      if (!clips.some(clip => clip.name === NAMES[motion as Motion])) throw new Error(`缺少动作：${motion}`);
+    for (const [motion, name] of Object.entries(ANIMATED_MODELS[kind].motions)) {
+      if (!clips.some(clip => clip.name === name)) throw new Error(`缺少动作：${motion} (${name})`);
     }
     if (kind === 'tower') {
       this.arrow = root.getObjectByName('LoadedArrow');
@@ -34,21 +37,28 @@ export class AnimationActor {
       // Preserve the loaded pose while making the arrow follow the string centre.
       pull.attach(this.arrow);
     }
-    this.mixer.addEventListener('loop', event => { this.loops += Math.abs(event.loopDelta); });
-    this.mixer.addEventListener('finished', () => { this.finishes++; this.state = 'finished'; });
+    this.mixer.addEventListener('loop', event => { if (event.action === this.action) this.loops += Math.abs(event.loopDelta); });
+    this.mixer.addEventListener('finished', event => {
+      if (event.action === this.action) { this.finishes++; this.state = 'finished'; }
+    });
     this.reset();
   }
 
   play(motion: Motion, loop = false): void {
     if (this.destroyed) throw new Error('实例已经销毁');
     if (motion === 'ready') { this.reset(); return; }
-    const clip = this.clips.find(candidate => candidate.name === NAMES[motion]);
+    const clip = this.clips.find(candidate => candidate.name === ANIMATED_MODELS[this.kind].motions[motion]);
     if (!clip) throw new Error(`缺少动作：${motion}`);
-    this.mixer.stopAllAction();
+    this.action?.stop();
+    let baseClip = clip;
+    if (this.upperBody) {
+      if (motion === 'idle' || motion === 'walk' || motion === 'run') baseClip = this.upperBody.beginBase(clip, this.speed);
+      else this.upperBody.interrupt();
+    }
     this.playbackId++;
     this.motion = motion;
-    this.action = this.mixer.clipAction(clip).reset();
-    const repeat = motion === 'idle' || motion === 'walk' || (motion === 'shoot' && loop);
+    this.action = this.mixer.clipAction(baseClip).reset();
+    const repeat = motion === 'idle' || motion === 'walk' || motion === 'run' || motion === 'charge' || (motion === 'shoot' && loop);
     this.action.setLoop(repeat ? LoopRepeat : LoopOnce, repeat ? Infinity : 1);
     this.action.clampWhenFinished = !repeat;
     this.action.setEffectiveTimeScale(this.speed);
@@ -59,7 +69,8 @@ export class AnimationActor {
   }
 
   reset(): void {
-    if (this.kind === 'skeleton') { this.play('idle'); return; }
+    this.upperBody?.interrupt();
+    if (ANIMATED_MODELS[this.kind].motions.idle) { this.play('idle'); return; }
     this.play('shoot');
     this.seek(0);
     this.motion = 'ready';
@@ -68,10 +79,11 @@ export class AnimationActor {
 
   seek(seconds: number): void {
     if (!this.action) return;
-    if (this.kind === 'tower') this.motion = 'shoot';
+    if (this.motion === 'ready') this.motion = 'shoot';
     this.action.enabled = true;
     this.action.paused = true;
     this.action.time = Math.max(0, Math.min(seconds, this.action.getClip().duration));
+    this.upperBody?.seekBase(this.action.time);
     this.state = 'paused';
     this.update(0);
   }
@@ -79,16 +91,19 @@ export class AnimationActor {
   togglePause(): void {
     if (!this.action || this.state === 'finished' || this.state === 'ready') return;
     this.action.paused = !this.action.paused;
+    this.upperBody?.pauseBase(this.action.paused);
     this.state = this.action.paused ? 'paused' : 'playing';
   }
 
   setSpeed(speed: number): void {
     this.speed = speed;
     this.action?.setEffectiveTimeScale(speed);
+    this.upperBody?.setBaseSpeed(speed);
   }
 
   update(delta: number): void {
     if (this.destroyed) return;
+    this.upperBody?.update(delta);
     this.mixer.update(delta);
     if (this.arrow) this.arrow.visible = this.motion === 'ready' || (this.action?.time ?? 0) < 0.5;
     this.root.updateMatrixWorld(true);
@@ -103,7 +118,7 @@ export class AnimationActor {
       id: this.root.uuid, playbackId: this.playbackId, clock: this.mixer.time, motion: this.motion, state: this.state,
       time: this.action?.time ?? 0, duration: this.action?.getClip().duration ?? 1,
       speed: this.speed, loops: this.loops, finishes: this.finishes,
-      arrowVisible: this.arrow?.visible ?? null,
+      arrowVisible: this.arrow?.visible ?? null, upperBody: this.upperBody?.inspect() ?? null,
       skeletonIds: [...this.skeletons].map(s => s.uuid), firstBoneId: bones[0]?.uuid,
       geometryId: meshes[0]?.geometry.uuid,
       materialId: meshes[0] && (Array.isArray(meshes[0].material) ? meshes[0].material[0] : meshes[0].material).uuid,
@@ -115,6 +130,7 @@ export class AnimationActor {
     if (this.destroyed) return;
     this.destroyed = true;
     this.root.removeFromParent();
+    this.upperBody?.interrupt();
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.root);
     // SkeletonUtils clones share geometry/material/texture, but own their skeletons and bone textures.

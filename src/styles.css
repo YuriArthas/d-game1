@@ -82,6 +82,7 @@ h1 {
   background: #254579;
   transform: translateY(-2px);
 }
+.game-entry + .game-entry { margin-top: 14px; }
 
 .game-entry span:first-child {
   display: grid;
@@ -186,6 +187,9 @@ h1 {
 .lab-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 12px; }
 .lab-toolbar [role="status"] { font-size: .8rem; color: #afc3ea; }
 .lab-canvas { min-height: 0; min-width: 0; overflow: hidden; }
+.cavalry-rotatable { position: relative; touch-action: none; cursor: grab; user-select: none; }
+.cavalry-rotatable.is-dragging { cursor: grabbing; }
+.cavalry-drag-hint { position: absolute; z-index: 1; top: 8px; left: 50%; transform: translateX(-50%); pointer-events: none; padding: 5px 10px; border-radius: 999px; background: rgb(16 21 34 / .72); color: #e3edf7; font-size: .75rem; white-space: nowrap; }
 .lab-controls { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 8px 12px; background: #101522; }
 .actor-controls { min-width: 0; padding: 8px; border: 1px solid #3c5f9b; border-radius: 8px; }
 .actor-controls strong { display: block; font-size: .85rem; margin-bottom: 6px; }
@@ -195,6 +199,11 @@ h1 {
 .animation-lab label { font-size: .8rem; }
 .time-control { display: flex; align-items: center; gap: 6px; margin: 5px 0; }
 .time-control input { min-width: 0; flex: 1; }
+.layer-hint { color: #afc3ea; font-size: .8rem; }
+.upper-controls { border-top: 1px solid #3c5f9b; margin-top: 8px; padding-top: 8px; }
+.has-upper-layer .lab-controls { max-height: 46vh; overflow-y: auto; }
+.cavalry-test-page .preview-header div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
+.cavalry-test-page .preview-header small { color: #afc3ea; }
 
 .runtime-page { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .runtime-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 8px 12px; }
@@ -214,6 +223,7 @@ h1 {
   .animation-lab { grid-template-columns: minmax(0, 1fr) 310px; grid-template-rows: auto minmax(0, 1fr); }
   .lab-toolbar { grid-column: 1 / -1; }
   .lab-controls { grid-template-columns: 1fr; overflow-y: auto; }
+  .has-upper-layer .lab-controls { max-height: none; }
 }
 
 .runtime-counts { display: flex; flex-wrap: wrap; gap: 8px 18px; }

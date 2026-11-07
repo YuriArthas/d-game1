@@ -1,6 +1,6 @@
 # Three.js 游戏测试工程
 
-这是一个最小的 Three.js + React Three Fiber + TypeScript 测试工程，当前已接入网格建造、箭塔攻击与骷髅三波战斗，并保留模型和运行时实验页，不启用物理。
+这是一个最小的 Three.js + React Three Fiber + TypeScript 测试工程，当前已接入网格建造、箭塔攻击与骷髅三波战斗，并保留模型和运行时实验页；另有独立骑兵动作测试，不启用物理。
 
 ## 开发
 
@@ -26,6 +26,10 @@ npm run dev
 模型及原始 CC0 授权位于 `public/assets/kaykit-skeletons/`，构建时复制到静态产物，无运行时外部 CDN 依赖。`SkeletonActor` 管理动画与资源生命周期，React 组件只负责场景挂接与测试 UI。
 
 项目生成的箭塔资产位于 `public/assets/arrow-tower/`。`StaticPreviewAsset` 管理静态模型加载、装填挂接和资源释放；正交相机随窗口尺寸调整取景。P1.4 实测见 [浏览器静态显示记录](docs/research/p1-4-browser-static.md)。
+
+新增五个 Blender 原创样本：骨甲爬虫、疾行小鬼、岩甲巨怪、炮塔和冰霜塔。打开 `/#/games/test-game?view=animation&asset=bone-crawler`，在“验证模型”下拉框选择；可分别控制两个实例的动作、暂停、进度和释放。三个怪物都有 Idle / Walk / Death，炮塔有 Shoot，冰霜塔有 Idle / Shoot。疾行小鬼还增加了 UpperAttack：选择“行走”后点击“上身攻击”，可分别控制上下身速度、暂停与进度，调节上身权重；死亡切回全身动作。直接打开 `/#/games/test-game?view=animation&asset=moss-runner`，详见[分层动作记录](docs/research/split-body-animation.md)。GLB 在 `public/assets/frontier/`，可编辑 `.blend` 在 `assets-source/frontier/`，生成脚本为 `tools/blender/build_frontier.py`。它们目前是模型与动作样本，尚未接入战斗数值或规则，详见[原创模型记录](docs/research/frontier-assets.md)。
+
+新增独立“骑兵动作测试”入口：直接打开 `/#/games/cavalry`。页面默认展示约 5000 面的 Tripo 蓝银骑兵（4766 三角面、512×512 Tripo 烘焙贴图、一个材质），旧 2078 面长枪版本保留为回退资产。可查看 Idle / Run / Attack / Charge / Dead，奔跑可叠加上身前向穿刺，马腿采用四拍支撑/抬腿节奏，左右实例独立；画布支持鼠标拖动或触摸左右滑动旋转角色，也保留四个观察角度、分层暂停与进度、卸载/重载。该测试不接塔防，先接受 Web 视觉反馈再考虑 Roblox。源文件在 `assets-source/cavalry/`，详见[骑兵动作记录](docs/research/cavalry-web-animation.md)。
 
 ## 构建和静态运行
 
@@ -54,3 +58,16 @@ blender --background --factory-startup --threads 4 --python-exit-code 1 \
 构建完成后 `npm run serve` 在 4173 提供完整静态站点。Block Blast 支持刷新、暂停菜单返回列表，调试入口添加 `?debug=1`。子游戏可以独立构建部署，无需加载塔防资源。游戏规则、确定性 API、回放和验证记录见 [Block Blast README](../d-Block-Blast/README.md)。
 
 当前站点已切到公开入口 <https://w-sunjun-public.dev.clock-p.com/>，无需登录；Block Blast 直达 <https://w-sunjun-public.dev.clock-p.com/games/block-blast/index.html>。
+
+## Mining 正式版与公开测试版
+
+游戏列表并列提供：
+
+- 正式 Mining：<https://w-sunjun-public.dev.clock-p.com/games/mining/index.html>
+- Mining 测试版：<https://w-sunjun-public.dev.clock-p.com/games/mining-test/index.html>
+
+Mining 可试玩改动先发布到测试入口，再进行公开场景/交互验证，不能只做用户看不到的本地预览。需要额外隔离时增加公开列表入口。测试版退出后返回游戏列表。
+
+宿主构建使用 `MINING_TEST_PROJECT`（兼容旧 `MINING_PROJECT`，默认 `../d-Mining`）构建测试版。正式 Mining 从 `MINING_RELEASE_DIST` 指定的已发布构建复制，默认保留当前 `dist/games/mining`；不会自动将测试源码提升为正式版。正式构建缺失会明确失败。
+
+`GAME_BUILD_OUT_DIR` 可指定构建产物目录；构建前暂存子游戏产物以保留正式 Mining。公开部署只替换所需入口，保留旧哈希资源。不要为修改游戏列表而覆盖其他游戏或未授权的正式版本。

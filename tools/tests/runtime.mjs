@@ -7,7 +7,7 @@ process.chdir(fileURLToPath(new URL('../../', import.meta.url)));
 execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', '--ignoreConfig', '--target', 'es2022',
   '--module', 'esnext', '--moduleResolution', 'bundler', '--skipLibCheck', '--outDir', 'artifacts/runtime-tests',
   'src/games/runtime-test/RuntimeWorld.ts', 'src/games/rendering/cloneSkeletonModel.ts',
-  'src/games/tower-defense/BattleWorld.ts',
+  'src/games/tower-defense/BattleWorld.ts', 'src/games/test-game/animation/AnimationActor.ts',
   'src/games/tower-defense/ArrowTowerViews.ts', 'src/vite-env.d.ts',
   'src/games/diagnostics/GpuTimer.ts'], { stdio: 'inherit' });
 // Resolve the compiler's extensionless local imports only within the test output.
@@ -166,6 +166,9 @@ await import('./placement.mjs');
 await import('./combat.mjs');
 await import('./waves.mjs');
 await import('./arrow-views.mjs');
+await import('./frontier-assets.mjs');
+await import('./split-body.mjs');
+await import('./cavalry.mjs');
 
 const { GpuTimer } = await import('../../artifacts/runtime-tests/diagnostics/GpuTimer.js');
 function gpuMock(supported = true) {
